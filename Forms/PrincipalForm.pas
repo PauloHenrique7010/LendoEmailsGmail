@@ -15,7 +15,7 @@ uses
 
 type
   TPrincipalFrm = class(TForm)
-    Button1: TButton;
+    btnIniciar: TButton;
     mmTexto: TMemo;
     IMAP: TIdIMAP4;
     IO_OpenSSL: TIdSSLIOHandlerSocketOpenSSL;
@@ -30,7 +30,7 @@ type
     actFechar: TAction;
     btnVisualizarEmail: TBitBtn;
     actVisualizarEmail: TAction;
-    procedure Button1Click(Sender: TObject);
+    procedure btnIniciarClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure rdbRecorteClick(Sender: TObject);
@@ -38,13 +38,11 @@ type
     procedure actFecharExecute(Sender: TObject);
     procedure actVisualizarEmailExecute(Sender: TObject);
   private
+    lCredenciais : TStringlist;
+    OPIniciar : boolean;
     caminhoEArquivo : string;
-    lCodigo, lCaracter : TStringlist;
-    procedure lerEmailRecorte;
     procedure lerEmailRecorteHTML;
-    procedure lerEmailAndamento;
     procedure lerEmailAndamentoHTML;
-    procedure lerEmailAndamentoHTML2;
     function conteudoTag(texto,tagAbre, tagFecha : string):string;
     function removerTag(texto, inicioTag, fimTag: string):string;
   public
@@ -71,7 +69,7 @@ begin
     ShowMessage('Arquivo não encontrado, não é possível visualizar e-mail');
 end;
 
-procedure TPrincipalFrm.Button1Click(Sender: TObject);
+procedure TPrincipalFrm.btnIniciarClick(Sender: TObject);
 var
   lMsg: TIdMessage;
   rec: array of TIdIMAP4SearchRec;
@@ -79,85 +77,93 @@ var
   codEmail : integer;
   assuntoEmail : string;
 begin
-  with IO_OpenSSL do
+  if (OPIniciar = false) then
+    Application.MessageBox(Pchar('Não é possível iniciar, não foi configurado credenciais do gmail'+#13+
+                           'Formato:'+#13+'1º Linha -> Email'+#13+
+                           '2º Linha -> Senha'+#13+
+                           'Nome arquivo: "credenciais.txt" (na mesma pasta do executável)'),'INICIAR')
+  else
   begin
-    Destination := 'imap.gmail.com:993';
-    Host := 'imap.gmail.com';
-    Port := 995;
-    SSLOptions.Method := sslvSSLv23;
-    SSLOptions.Mode := sslmClient;
-  end;
-
-  with IMAP do
-  begin
-    IOHandler := IO_OpenSSL;
-    Host := 'imap.gmail.com'; { Endereço do servidor }
-    Username := 'pauloopcao0@gmail.com';
-    UseTLS := utUseImplicitTLS;
-    Password := 'escoliose';
-    Port := 993; { Porta que o servidor está ouvindo }
-    IMAP.Connect();
-  end;
-
-  if (IMAP.Connected) then
-  begin
-    IMAP.SelectMailBox('INBOX');
-    SetLength(rec, 2);
-    //caso queira buscar pelo dia e os que nao foram vistos
-    //rec[1].SearchKey := skUnseen;
-    rec[0].SearchKey := skSentOn; //enviado na data..
-
-    rec[0].Date := StrToDate('09/12/2020');
-    if (rdbAndamento.Checked) then
-      rec[0].Date := StrToDate('14/12/2020');
-
-    if not IMAP.SearchMailBox(rec) then
-      raise Exception.Create('Erro na pesquisa da caixa postal');
-
-    contMsg := Length(IMAP.MailBox.SearchResult);
-    for i := 0 to Pred(contMsg) do
+    with IO_OpenSSL do
     begin
-      lMsg := TIdMessage.Create(nil);
-      lMsg.Encoding := mePlainText;
-
-      //pegando do email mais antigo para o primeiro
-      //codEmail := imap.MailBox.SearchResult[i];
-
-      //to pegando o email mais recente para o mais antigo
-      codEmail := imap.MailBox.SearchResult[contmsg-(i+1)];
-
-      { *** recupera o email completo*** }
-      imap.Retrieve(codEmail, lMsg);
-      assuntoEmail := LowerCase(lMsg.Subject);
-
-      //ORIGINAL
-{      if MsgObject.MessageParts.TextPartCount > 0 then
-                begin
-                  for PartIndex := 0 to MsgObject.MessageParts.Count - 1 do
-                    if MsgObject.MessageParts[PartIndex] is TIdText then
-                      S := S + TIdText(MsgObject.MessageParts[PartIndex]).Body.Text;
-                  BodyTexts.Add(S);
-                end
-                else
-                  BodyTexts.Add(MsgObject.Body.Text);}
-
-
-      //pega o html do email
-      mmTexto.Lines.Text := (TIdText(lmsg.MessageParts[1]).Body.Text);
-      mmTexto.Lines.SaveToFile(caminhoEArquivo,TEncoding.UTF8); //é salvo o arquivo caso queira ver o email
-
-      mmRaspagem.Clear;
-
-      if (Pos('recorte digital',assuntoEmail) > 0) then
-        lerEmailRecorteHTML
-      else if (Pos('andamento processual',assuntoEmail) > 0) then
-        lerEmailAndamentoHTML2;
-      break;
-
-      //Marca como nao visto
-      //IMAP.StoreFlags([codEmail],sdReplace,lMsg.Flags - [mfSeen]);
+      Destination := 'imap.gmail.com:993';
+      Host := 'imap.gmail.com';
+      Port := 995;
+      SSLOptions.Method := sslvSSLv23;
+      SSLOptions.Mode := sslmClient;
     end;
-    IMAP.Disconnect();
+
+    with IMAP do
+    begin
+      IOHandler := IO_OpenSSL;
+      Host := 'imap.gmail.com'; { Endereço do servidor }
+      Username := lCredenciais.Strings[0];
+      UseTLS := utUseImplicitTLS;
+      Password := lCredenciais.Strings[1];
+      Port := 993; { Porta que o servidor está ouvindo }
+      IMAP.Connect();
+    end;
+
+    if (IMAP.Connected) then
+    begin
+      IMAP.SelectMailBox('INBOX');
+      SetLength(rec, 2);
+      //caso queira buscar pelo dia e os que nao foram vistos
+      //rec[1].SearchKey := skUnseen;
+      rec[0].SearchKey := skSentOn; //enviado na data..
+
+      rec[0].Date := StrToDate('09/12/2020');
+      if (rdbAndamento.Checked) then
+        rec[0].Date := StrToDate('14/12/2020');
+
+      if not IMAP.SearchMailBox(rec) then
+        raise Exception.Create('Erro na pesquisa da caixa postal');
+
+      contMsg := Length(IMAP.MailBox.SearchResult);
+      for i := 0 to Pred(contMsg) do
+      begin
+        lMsg := TIdMessage.Create(nil);
+        lMsg.Encoding := mePlainText;
+
+        //pegando do email mais antigo para o primeiro
+        //codEmail := imap.MailBox.SearchResult[i];
+
+        //to pegando o email mais recente para o mais antigo
+        codEmail := imap.MailBox.SearchResult[contmsg-(i+1)];
+
+        { *** recupera o email completo*** }
+        imap.Retrieve(codEmail, lMsg);
+        assuntoEmail := LowerCase(lMsg.Subject);
+
+        //ORIGINAL
+  {      if MsgObject.MessageParts.TextPartCount > 0 then
+                  begin
+                    for PartIndex := 0 to MsgObject.MessageParts.Count - 1 do
+                      if MsgObject.MessageParts[PartIndex] is TIdText then
+                        S := S + TIdText(MsgObject.MessageParts[PartIndex]).Body.Text;
+                    BodyTexts.Add(S);
+                  end
+                  else
+                    BodyTexts.Add(MsgObject.Body.Text);}
+
+
+        //pega o html do email
+        mmTexto.Lines.Text := (TIdText(lmsg.MessageParts[1]).Body.Text);
+        mmTexto.Lines.SaveToFile(caminhoEArquivo,TEncoding.UTF8); //é salvo o arquivo caso queira ver o email
+
+        mmRaspagem.Clear;
+
+        if (Pos('recorte digital',assuntoEmail) > 0) then
+          lerEmailRecorteHTML
+        else if (Pos('andamento processual',assuntoEmail) > 0) then
+          lerEmailAndamentoHTML;
+        break;
+
+        //Marca como nao visto
+        //IMAP.StoreFlags([codEmail],sdReplace,lMsg.Flags - [mfSeen]);
+      end;
+      IMAP.Disconnect();
+    end;
   end;
 end;
 
@@ -187,300 +193,16 @@ end;
 procedure TPrincipalFrm.FormCreate(Sender: TObject);
 begin
   caminhoEArquivo := ExtractFilePath(Application.ExeName)+'email.html';
-end;
-
-procedure TPrincipalFrm.lerEmailAndamento;
-var
-  posicao : integer;
-  texto : string;
-  textoAtual: string;
-  posAtual: integer;
-  posProximo : integer;
-
-  textoRepeticao : string;
-
-  posAuxiliar : integer;
-  textoAuxiliar : string;
-begin
-  texto := mmTexto.Lines.Text;
-  //corta a string até a parte do html para ficar menor..
-  posicao := Pos('<html',texto);
-  texto := Copy(texto,0,posicao);
-  mmTexto.Lines.Text := Texto;
-
-
-  //pega a apartir
-  posicao := Pos('O sistema PUSH está disponibilizando ',texto);
-  texto := Copy(texto,posicao);
-
-
-  posicao := Pos('abaixo:',texto);
-  texto := Copy(texto,posicao+7);
-  textoRepeticao := sLineBreak+sLineBreak+sLineBreak+sLineBreak+sLineBreak;
-  while (posicao > 0) do
+  lCredenciais := TStringlist.Create;
+  OPIniciar := false;
+  if (FileExists('credenciais.txt')) then
   begin
-    //tipo do andamento
-    posAtual := 0;
-    posProximo := Pos('Assunto:',texto)-1;
-    textoAtual:= Copy(texto,0,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    //REMOVE O HTML QUE ESTA NO MEIO DA STRING
-    posAuxiliar := pos('<',textoAtual);
-    textoAuxiliar := Copy(textoAtual,0,posAuxiliar-1);
-    posAuxiliar := pos('>',textoAtual)+1;
-    textoAtual := textoAuxiliar + copy(textoAtual,posAuxiliar);
-
-    showMessage(textoAtual);
-
-    texto := Copy(texto,posProximo);
-
-    posAtual:= Pos('Assunto:',texto);
-    posProximo := Pos('Advogados:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-
-    showMessage(textoAtual);
-
-    texto := Copy(texto,posProximo);
-
-    posAtual:= Pos('Advogados:',texto);
-    posProximo := Pos('Novas Movimentações',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-
-    showMessage(textoAtual);
-
-    texto := Copy(texto,posProximo);
-
-    //Movimentacoes
-    posAtual:= Pos('Novas Movimentações',texto);
-    posProximo := Pos(textoRepeticao,texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-
-    showMessage(textoAtual);
-
-    posicao := pos(textoRepeticao,texto);
-    texto := Copy(texto,posicao);
+    lCredenciais.LoadFromFile('credenciais.txt');
+    OPIniciar := true;
   end;
 end;
 
 procedure TPrincipalFrm.lerEmailAndamentoHTML;
-var
-  posicao : integer;
-  texto : string;
-  textoAtual: string;
-  textoRepeticao : string;
-  textoAuxiliar : string;
-
-  OPLoop : boolean;
-begin
-  texto := mmTexto.Lines.Text;
-
-  posicao := Pos('O sistema PUSH está disponibilizando ',texto);
-  texto := Copy(texto,posicao);
-  texto := StringReplace(texto,'<o:p>','',[rfReplaceAll]);
-  texto := StringReplace(texto,'</o:p>','',[rfReplaceAll]);
-  texto := StringReplace(texto,'<br>','',[rfReplaceAll]);
-  texto := StringReplace(texto,'&nbsp;','',[rfReplaceAll]);
-
-
-  posicao := Pos('<table',texto);
-  texto := Copy(texto,posicao+1);
-  while (posicao > 0) do
-  begin
-    mmRaspagem.Lines.Add('----------------------------------------------------------------------------------------------------------');
-    textoRepeticao := texto;
-    posicao := pos('<tr',textoRepeticao);
-    textoRepeticao := Copy(textoRepeticao,posicao);
-
-    textoAtual := textoRepeticao;
-    textoAtual := conteudoTag(textoAtual,'<tr>','</tr>');
-    textoAtual := conteudoTag(textoAtual,'<td','</td>');
-    textoAtual := conteudoTag(textoAtual,'<p','</p>');
-
-    textoAuxiliar := textoAtual;
-    textoAuxiliar := conteudoTag(textoAuxiliar,'<a','</a>');
-    textoAuxiliar := conteudoTag(textoAuxiliar,'<span','</span>');
-
-    textoAtual := removerTag(textoAtual, '<a','</a>');
-    textoAtual := textoAtual + textoAuxiliar;
-
-    mmRaspagem.Lines.Add('Título...: '+textoAtual);
-
-    // **  AVISO  **
-    //AS VEZES APARECE UM CAMPO CHAMADO CLASSE
-      textoAtual := textoRepeticao;
-      textoAtual := copy(textoAtual,3);
-      posicao := pos('<tr',textoAtual);
-      textoAtual := Copy(textoAtual,posicao);
-
-      //Palavra: Classe
-      textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-      textoAtual := conteudoTag(textoAtual,'<td','</td>');
-      textoAtual := conteudoTag(textoAtual,'<p','</p>');
-      textoAtual := conteudoTag(textoAtual,'<strong','</strong>');
-
-      if (textoAtual = 'Classe:') then
-      begin
-        //passa para o proximo tr dentro do table
-        textoRepeticao := copy(textoRepeticao,3);
-        posicao := pos('<tr',textoRepeticao);
-        textoRepeticao := Copy(textoRepeticao,posicao);
-
-        textoAtual := textoRepeticao;
-        textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-        //passo para o segundo td
-        textoAtual := Copy(textoAtual,Pos('<td',textoAtual,2));
-        textoAtual := conteudoTag(textoAtual,'<td','</td>');
-        textoAtual := conteudoTag(textoAtual,'<p','</p>');
-        mmRaspagem.Lines.Add('Classe...: '+textoAtual);
-
-        //se for classe, o que fazer com ela..
-
-      end;
-    // **  AVISO  **
-    //AS VEZES APARECE UM CAMPO CHAMADO CLASSE
-
-
-    //passa para o proximo tr dentro do table
-    textoRepeticao := copy(textoRepeticao,3);
-    posicao := pos('<tr',textoRepeticao);
-    textoRepeticao := Copy(textoRepeticao,posicao);
-
-    //Pega a palavra "Assunto"
-    textoAtual := textoRepeticao;
-    textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-    textoAtual := conteudoTag(textoAtual,'<td','</td>');
-    textoAtual := conteudoTag(textoAtual,'<p','</p>');
-    textoAtual := conteudoTag(textoAtual,'<strong','</strong>');
-
-
-    //um tr contem dois td, o primeiro é a palavra e o segundo o conteudo
-    textoAtual := textoRepeticao;
-    textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-    //passo para o segundo td
-    textoAtual := Copy(textoAtual,Pos('<td',textoAtual,2));
-    textoAtual := conteudoTag(textoAtual,'<td','</td>');
-    textoAtual := conteudoTag(textoAtual,'<p','</p>');
-    mmRaspagem.Lines.Add('Assunto..: '+textoAtual);
-
-    //pula proxima linha
-    textoRepeticao := copy(textoRepeticao,3);
-    posicao := pos('<tr',textoRepeticao);
-    textoRepeticao := Copy(textoRepeticao,posicao);
-
-
-    mmRaspagem.Lines.Add('Advogados:');
-    //pega os advogados do andamento..
-    OPLoop := true;
-    while (OPLoop) do
-    begin
-      //Pega a palavra "Advogados"
-      textoAtual := textoRepeticao;
-      textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-      textoAtual := conteudoTag(textoAtual,'<td','</td>');
-      textoAtual := conteudoTag(textoAtual,'<p','</p>');
-      textoAtual := conteudoTag(textoAtual,'<strong','</strong>');
-
-
-      //se aparecer Novas Movimentacoes, é pq acabou os advogados..
-      if (textoAtual = 'Novas Movimentações') then
-        OPLoop := false
-      else  //se possuir mais de um advogado, pega eles..
-      begin
-        //passo para o outro tr onde realmente esta o advogado
-        textoAtual := textoRepeticao;
-        textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-        //passo para o segundo td
-        textoAtual := Copy(textoAtual,Pos('<td',textoAtual,2));
-        textoAtual := conteudoTag(textoAtual,'<td','</td>');
-        textoAtual := conteudoTag(textoAtual,'<p','</p>');
-        mmRaspagem.Lines.Add('- '+textoAtual);
-      end;
-
-      //pula proxima linha
-      textoRepeticao := copy(textoRepeticao,3);
-      posicao := pos('<tr',textoRepeticao);
-      textoRepeticao := Copy(textoRepeticao,posicao);
-    end;
-
-    mmRaspagem.Lines.Add('');
-    mmRaspagem.Lines.Add('Movimentações');
-    //Movimentacoes
-    OPLoop := true;
-    while (OPLoop) do
-    begin
-      //Data movimentacao
-      textoAtual := textoRepeticao;
-      textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-      textoAtual := conteudoTag(textoAtual,'<td','</td>');
-      textoAtual := conteudoTag(textoAtual,'<p','</p>');
-      textoAtual := conteudoTag(textoAtual,'<strong','</strong>');
-      mmRaspagem.Lines.Add('');
-      mmRaspagem.Lines.Add(textoAtual);
-
-      //Texto movimentacao para o outro tr onde realmente esta o advogado
-      textoAtual := textoRepeticao;
-      textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-      //passo para o segundo td
-      textoAtual := Copy(textoAtual,Pos('<td',textoAtual,2));
-      textoAtual := conteudoTag(textoAtual,'<td','</td>');
-      textoAtual := conteudoTag(textoAtual,'<p','</p>');
-      mmRaspagem.Lines.Add(textoAtual);
-
-
-      //DAQUI PARA BAIXO VERIFICA SE CHEGOU NO FINAL DAS MOVIMENTAÇÕES
-
-      //Como é feito, pulo duas linhas, se na segunda linha ele encontrar 'assunto, classe ou advogado:',
-      //é pq na primeira linha ele saiu das movimentacoes
-
-      //pula proxima linha
-      textoAtual := textoRepeticao;
-      textoAtual := copy(textoAtual,3);
-      posicao := pos('<tr',textoAtual);
-      textoAtual := Copy(textoAtual,posicao);
-
-      textoAtual := copy(textoAtual,3);
-      posicao := pos('<tr',textoAtual);
-      textoAtual := Copy(textoAtual,posicao);
-
-      textoAtual := conteudoTag(textoAtual,'<tr','</tr>');
-      textoAtual := conteudoTag(textoAtual,'<td','</td>');
-      textoAtual := conteudoTag(textoAtual,'<p','</p>');
-      textoAtual := conteudoTag(textoAtual,'<strong','</strong>');
-
-      //chegou no final das movimentacoes
-      if ((textoAtual = 'Assunto:') OR
-          (textoAtual = 'Advogados:') or
-          (textoAtual = 'Classe:') or
-          (textoAtual = '')//para o ultimo registro
-          ) then
-        opLoop := false
-      else
-      begin
-
-        //pulo uma linha
-        textoRepeticao := copy(textoRepeticao,3);
-        posicao := pos('<tr',textoRepeticao);
-        textoRepeticao := Copy(textoRepeticao,posicao);
-        //pulo uma linha
-        textoRepeticao := copy(textoRepeticao,3);
-        posicao := pos('<tr',textoRepeticao);
-        textoRepeticao := Copy(textoRepeticao,posicao);
-      end
-    end;
-
-    //procura a proxima tabela
-    posicao := Pos('<table',texto);
-    texto := Copy(texto,posicao+1);
-
-    mmRaspagem.Lines.Add('----------------------------------------------------------------------------------------------------------');
-    mmRaspagem.Lines.Add('');
-  end;
-end;
-
-procedure TPrincipalFrm.lerEmailAndamentoHTML2;
 function pegarTituloMovimentacao(texto:string):string;
 var
   textoAuxiliar, textoAtual : string;
@@ -737,144 +459,6 @@ begin
   lLista.Free;
 end;
 
-procedure TPrincipalFrm.lerEmailRecorte;
-var
-  posicao : integer;
-  texto : string;
-  textoAtual: string;
-  posAtual: integer;
-  posProximo : integer;
-
-  textoRepeticao : string;
-begin
-  texto := mmTexto.Lines.Text;
-  posicao := Pos('<html',texto);
-  texto := Copy(texto,0,posicao);
-  mmTexto.Lines.Text := Texto;
-
-
-  //pega a apartir
-  posicao := Pos('Recorte Digital - OAB',texto);
-  texto := Copy(texto,posicao);
-
-  posAtual:= Pos('Advogado(a)',texto);
-  posProximo := Pos('Número da OAB',texto);
-  textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-  textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-  textoAtual := Copy(textoAtual,12);
-//  edtAdvogado.Text := textoAtual;
-
-  posAtual:= Pos('Número da OAB',texto);
-  posProximo := Pos('Data processamento/pesquisa',texto);
-  textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-  textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-  textoAtual := Copy(textoAtual,15);
-//  edtOAB.Text := textoAtual;
-
-  posAtual:= Pos('Data processamento/pesquisa',texto);
-  posProximo := Pos('Atalhos:',texto);
-  textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-  textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-
-
-  //pegar os lançamentos
-  posicao := Pos('Envio sem a pesquisa das publicações vindouras do Tribunal',texto);
-  texto := Copy(texto,posicao, texto.Length);
-  textoRepeticao := 'Data de Disponibilização:';
-  posicao := pos(textoRepeticao,texto);
-  texto := Copy(texto,posicao);
-  while (posicao > 0) do
-  begin
-
-
-    //pega a Data de disponibilização
-    posAtual:= Pos('Data de Disponibilização:',texto);
-    posProximo := Pos('Data de Publicação:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('dt_disponibilizacao').AsDateTime := StrToDateDef(textoAtual,0);
-
-
-    texto := Copy(texto,posProximo);
-
-    //pega a Data de publicacao
-    posAtual:= Pos('Data de Publicação:',texto);
-    posProximo := Pos('Jornal:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('dt_publicacao').AsDateTime := StrToDateDef(textoAtual,0);
-
-    texto := Copy(texto,posProximo);
-
-    //pega o jornal
-    posAtual:= Pos('Jornal:',texto);
-    posProximo := Pos('Página:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('jornal').AsString:= textoAtual;
-
-    texto := Copy(texto,posProximo);
-
-    //pega a pagina
-    posAtual:= Pos('Página:',texto);
-    posProximo := Pos('Caderno:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('pagina').AsString:= textoAtual;
-
-    texto := Copy(texto,posProximo);
-
-    //pega o caderno
-    posAtual:= Pos('Caderno:',texto);
-    posProximo := Pos('Local:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('caderno').AsString:= textoAtual;
-
-    texto := Copy(texto,posProximo);
-
-    //pega o Local
-    posAtual:= Pos('Local:',texto);
-    posProximo := Pos('Vara:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('local').AsString:= textoAtual;
-
-    texto := Copy(texto,posProximo);
-
-    //pega a vara
-    posAtual:= Pos('Vara:',texto);
-    posProximo := Pos('Publicação:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('vara').AsString:= textoAtual;
-
-    texto := Copy(texto,posProximo);
-
-
-    //pega a publicação
-    posAtual:= Pos('Publicação:',texto);
-    posProximo := Pos('Página:',texto);
-    textoAtual:= Copy(texto,posAtual,posProximo-posAtual);
-    textoAtual:= StringReplace(textoAtual,sLineBreak,'',[rfReplaceAll]);
-    textoAtual := Copy(textoAtual,pos(':',textoAtual)+1);
-//    cdsRegistros.FieldByName('publicacao').AsString:= textoAtual;
-
-    texto := Copy(texto,posProximo);
-
-    posicao := pos(textoRepeticao,texto);
-    texto := Copy(texto,posicao);
-//    cdsRegistros.Post;
-  end;
-end;
-
 procedure TPrincipalFrm.lerEmailRecorteHTML;
 function pegarLinkPublicacao(texto:string):string;
 var
@@ -1101,13 +685,11 @@ begin
   posAuxiliar := pos(fimTag,texto)+fimTag.Length;
   texto:= textoAuxiliar + copy(texto,posAuxiliar);
   result := texto;
-
 end;
 
 procedure TPrincipalFrm.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-  lCodigo.Free;
-  lCaracter.Free;
+  lCredenciais.Free;
 end;
 
 end.

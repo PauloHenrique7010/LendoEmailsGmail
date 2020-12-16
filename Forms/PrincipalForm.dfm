@@ -55,14 +55,14 @@ object PrincipalFrm: TPrincipalFrm
     Font.Style = []
     ParentFont = False
   end
-  object Button1: TButton
+  object btnIniciar: TButton
     Left = 8
     Top = 8
     Width = 75
     Height = 25
     Caption = 'Iniciar'
     TabOrder = 0
-    OnClick = Button1Click
+    OnClick = btnIniciarClick
   end
   object mmTexto: TMemo
     Left = 8
