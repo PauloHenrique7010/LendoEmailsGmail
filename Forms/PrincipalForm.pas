@@ -92,9 +92,9 @@ begin
   begin
     IOHandler := IO_OpenSSL;
     Host := 'imap.gmail.com'; { Endereço do servidor }
-    Username := 'email@gmail.com';
+    Username := 'pauloopcao0@gmail.com';
     UseTLS := utUseImplicitTLS;
-    Password := 'senha';
+    Password := 'escoliose';
     Port := 993; { Porta que o servidor está ouvindo }
     IMAP.Connect();
   end;
